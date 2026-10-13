@@ -102,3 +102,9 @@ def test_pool_config_yaml_roundtrip() -> None:
         assert loaded.nodes[0].node_id == "node_00"
         assert loaded.nodes[0].cdp_port == 9222
         assert loaded.nodes[9].cdp_port == 9231
+
+
+def test_explicit_node_outside_port_range_rejected() -> None:
+    node = NodeConfig(node_id="n0", slot_index=0, cdp_port=9999, user_data_dir="/tmp/x")
+    with pytest.raises(ValueError, match="outside port_range"):
+        PoolConfig(pool_size=1, port_range=PortRange(start=9222, end=9222), nodes=[node])

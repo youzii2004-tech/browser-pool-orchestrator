@@ -12,7 +12,8 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
+import urllib.request
 import websockets
 
 logger = logging.getLogger("browser_pool.cdp")
@@ -38,8 +39,38 @@ class CDPResponseError(CDPError):
         self.data = data
 
 
+def _http_json(url: str, method: str = "GET", timeout: float = 5.0) -> Any:
+    req = urllib.request.Request(url, method=method)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (localhost only)
+        return json.loads(resp.read().decode("utf-8"))
+
+
+async def resolve_page_ws_url(port: int, host: str = "127.0.0.1", timeout: float = 5.0) -> str:
+    """Return the WebSocket URL of a page target on the given debugging port (opening one if needed)."""
+    base = f"http://{host}:{port}"
+    targets: List[Dict[str, Any]] = await asyncio.to_thread(_http_json, f"{base}/json/list", "GET", timeout)
+    for t in targets:
+        if t.get("type") == "page" and t.get("webSocketDebuggerUrl"):
+            return t["webSocketDebuggerUrl"]
+    created = await asyncio.to_thread(_http_json, f"{base}/json/new?about:blank", "PUT", timeout)
+    return created["webSocketDebuggerUrl"]
+
+
 class CDPClient:
-    """Asynchronous WebSocket client communicating directly with Chromium DevTools."""
+    """
+    Asynchronous WebSocket client communicating directly with Chromium DevTools.
+
+    ``mock_mode=True`` returns canned responses with no browser behind them. It exists
+    only so protocol plumbing can be unit-tested offline; use ``CDPClient.for_port``
+    against a running browser for anything real.
+    """
+
+    @classmethod
+    async def for_port(cls, port: int, timeout: float = 15.0, host: str = "127.0.0.1") -> "CDPClient":
+        """Connect to a page target of the Chromium listening on ``port``."""
+        client = cls(await resolve_page_ws_url(port, host), timeout=timeout)
+        await client.connect()
+        return client
 
     def __init__(
         self,
@@ -56,6 +87,7 @@ class CDPClient:
         self._pending_requests: Dict[int, asyncio.Future] = {}
         self._event_listeners: Dict[str, list[Callable[[Dict[str, Any]], None]]] = {}
         self._listener_task: Optional[asyncio.Task] = None
+        self._event_waiters: Dict[str, List[asyncio.Future]] = {}
         self._connected = False
         self._latencies: list[float] = []
 
@@ -127,6 +159,11 @@ class CDPClient:
             logger.warning("CDP listener encountered exception: %s", e)
         finally:
             self._connected = False
+            # The socket is gone: fail in-flight commands now instead of letting them time out.
+            for fut in self._pending_requests.values():
+                if not fut.done():
+                    fut.set_exception(CDPError("CDP connection closed before response arrived"))
+            self._pending_requests.clear()
 
     def _handle_raw_message(self, raw_message: Union[str, bytes]) -> None:
         """Parses and dispatches incoming WebSocket frames."""
@@ -156,6 +193,10 @@ class CDPClient:
 
         # 2. Check if message is a CDP event notification
         method = data.get("method")
+        if method:
+            for waiter in self._event_waiters.pop(method, []):
+                if not waiter.done():
+                    waiter.set_result(data.get("params", {}))
         if method and method in self._event_listeners:
             params = data.get("params", {})
             for callback in self._event_listeners[method]:
@@ -214,6 +255,19 @@ class CDPClient:
             self._pending_requests.pop(req_id, None)
             raise
 
+    async def wait_for_event(self, method: str, timeout: Optional[float] = None) -> Dict[str, Any]:
+        """Await the next occurrence of a CDP event (register *before* triggering it)."""
+        fut = self.expect_event(method)
+        try:
+            return await asyncio.wait_for(fut, timeout if timeout is not None else self.default_timeout)
+        except asyncio.TimeoutError:
+            raise CDPTimeoutError(f"Timed out waiting for CDP event '{method}'")
+
+    def expect_event(self, method: str) -> "asyncio.Future[Dict[str, Any]]":
+        fut: asyncio.Future = asyncio.get_running_loop().create_future()
+        self._event_waiters.setdefault(method, []).append(fut)
+        return fut
+
     def add_event_listener(self, event_name: str, callback: Callable[[Dict[str, Any]], None]) -> None:
         """Registers a callback for specific CDP event stream notifications."""
         if event_name not in self._event_listeners:
@@ -255,8 +309,53 @@ class CDPClient:
             params["referrer"] = referrer
         return await self.send("Page.navigate", params)
 
-    async def dom_query_selector(self, selector: str, node_id: int = 1) -> int:
-        """Finds matching DOM node ID."""
+    async def navigate(self, url: str, timeout: Optional[float] = None) -> Dict[str, Any]:
+        """
+        Navigate and wait for the load event. Returns ``{"url", "status", "frameId"}`` where
+        ``status`` is the HTTP status of the main document (None for non-HTTP URLs).
+        Raises CDPResponseError if the navigation itself fails (DNS, refused, ...).
+        """
+        timeout_val = timeout if timeout is not None else self.default_timeout
+        if self.mock_mode:
+            res = await self.page_navigate(url)
+            return {"url": url, "status": 200, "frameId": res.get("frameId")}
+
+        await self.send("Page.enable")
+        await self.send("Network.enable")
+        # responseReceived can arrive before Page.navigate returns the frameId, so collect
+        # every document response by frame and pick the main frame's afterwards.
+        doc_status: Dict[str, int] = {}
+
+        def on_response(params: Dict[str, Any]) -> None:
+            if params.get("type") == "Document" and params.get("frameId"):
+                doc_status[params["frameId"]] = int(params["response"].get("status", 0))
+
+        self.add_event_listener("Network.responseReceived", on_response)
+        loaded = self.expect_event("Page.loadEventFired")
+        frame_id: Optional[str] = None
+        try:
+            res = await self.send("Page.navigate", {"url": url}, timeout=timeout_val)
+            frame_id = res.get("frameId")
+            if res.get("errorText"):
+                raise CDPResponseError(-1, f"Navigation to {url} failed: {res['errorText']}")
+            await asyncio.wait_for(loaded, timeout=timeout_val)
+        except asyncio.TimeoutError:
+            raise CDPTimeoutError(f"navigation timeout after {timeout_val:.1f}s loading {url}")
+        finally:
+            listeners = self._event_listeners.get("Network.responseReceived", [])
+            if on_response in listeners:
+                listeners.remove(on_response)
+        code = doc_status.get(frame_id) if frame_id else None
+        return {"url": url, "status": code or None, "frameId": frame_id}
+
+    async def dom_query_selector(self, selector: str, node_id: Optional[int] = None) -> int:
+        """Finds the matching DOM node ID (0 if none). Resolves the document root when node_id is omitted."""
+        if node_id is None:
+            if self.mock_mode:
+                node_id = 1
+            else:
+                doc = await self.send("DOM.getDocument", {"depth": 0})
+                node_id = doc["root"]["nodeId"]
         res = await self.send("DOM.querySelector", {"nodeId": node_id, "selector": selector})
         return res.get("nodeId", 0)
 
@@ -295,6 +394,10 @@ class CDPClient:
                 "returnByValue": return_by_value,
             },
         )
+        if "exceptionDetails" in res:
+            details = res["exceptionDetails"]
+            text = details.get("exception", {}).get("description") or details.get("text", "JS exception")
+            raise CDPResponseError(-2, f"JavaScript exception: {text}")
         return res.get("result", {}).get("value")
 
     async def network_set_extra_http_headers(self, headers: Dict[str, str]) -> Dict[str, Any]:
