@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Browser Pool Orchestrator — Enterprise Distributed Headless Fleet & CDP Session Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #070b14;
+    --surface: #0c1220;
+    --surface-hover: #131c31;
+    --surface-elevated: #162038;
+    --border: #1a253c;
+    --border-accent: rgba(56, 189, 248, 0.25);
+    --cyan: #38bdf8;
+    --cyan-glow: rgba(56, 189, 248, 0.25);
+    --emerald: #10b981;
+    --emerald-glow: rgba(16, 185, 129, 0.25);
+    --amber: #f59e0b;
+    --amber-glow: rgba(245, 158, 11, 0.25);
+    --red: #f43f5e;
+    --red-glow: rgba(244, 63, 94, 0.25);
+    --indigo: #6366f1;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --dim: #475569;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    min-height: 1080px;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Cyber Grid Background */
+  .grid-backdrop {
+    position: absolute;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(56, 189, 248, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(56, 189, 248, 0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .radial-glow {
+    position: absolute;
+    top: -120px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1300px;
+    height: 450px;
+    background: radial-gradient(ellipse, rgba(56, 189, 248, 0.12) 0%, rgba(99, 102, 241, 0.05) 50%, transparent 80%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Header */
+  header {
+    position: relative;
+    z-index: 10;
+    height: 72px;
+    background: rgba(12, 18, 32, 0.88);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 36px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .logo-box {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #0284c7, #4f46e5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+  }
+
+  .logo-box svg {
+    width: 24px;
+    height: 24px;
+    color: #fff;
+  }
+
+  .brand-text h1 {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-text h1 span.badge-pro {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: var(--cyan);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .brand-text p {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #0284c7, #2563eb);
+    color: #ffffff;
+    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.3);
+  }
+  .btn-primary:hover {
+    box-shadow: 0 4px 16px rgba(56, 189, 248, 0.5);
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary {
+    background: rgba(26, 37, 60, 0.8);
+    border-color: var(--border);
+    color: var(--text);
+  }
+  .btn-secondary:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-accent);
+    color: var(--cyan);
+  }
+
+  .btn-danger {
+    background: rgba(244, 63, 94, 0.15);
+    border-color: rgba(244, 63, 94, 0.35);
+    color: #fda4af;
+  }
+  .btn-danger:hover {
+    background: rgba(244, 63, 94, 0.25);
+    box-shadow: 0 0 12px var(--red-glow);
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--emerald);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--emerald);
+    box-shadow: 0 0 8px var(--emerald);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(0.95); opacity: 0.8; }
+    50% { transform: scale(1.3); opacity: 1; }
+    100% { transform: scale(0.95); opacity: 0.8; }
+  }
+
+  /* Main Container */
+  main {
+    position: relative;
+    z-index: 5;
+    flex: 1;
+    padding: 24px 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* Telemetry Cards */
+  .telemetry-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+  }
+
+  .stat-card {
+    background: rgba(12, 18, 32, 0.85);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    backdrop-filter: blur(8px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--border-accent), transparent);
+  }
+
+  .stat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .stat-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+
+  .stat-badge {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .stat-badge.cyan { background: rgba(56, 189, 248, 0.15); color: var(--cyan); border: 1px solid rgba(56, 189, 248, 0.3); }
+  .stat-badge.emerald { background: rgba(16, 185, 129, 0.15); color: var(--emerald); border: 1px solid rgba(16, 185, 129, 0.3); }
+  .stat-badge.amber { background: rgba(245, 158, 11, 0.15); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+
+  .stat-value {
+    font-size: 26px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    margin: 8px 0 4px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .stat-sub {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .progress-track {
+    width: 100%;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 3px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--cyan), #2563eb);
+    border-radius: 3px;
+    transition: width 0.4s ease;
+  }
+
+  /* Two Column Core Layout */
+  .core-workspace {
+    display: grid;
+    grid-template-columns: 1200px 1fr;
+    gap: 20px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Left: 45-Node Matrix */
+  .matrix-panel {
+    background: rgba(12, 18, 32, 0.85);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 22px;
+    backdrop-filter: blur(8px);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-title {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .legend-dot.idle { background: var(--emerald); box-shadow: 0 0 6px var(--emerald); }
+  .legend-dot.active { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+  .legend-dot.cooldown { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .legend-dot.quarantined { background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+  /* 5x9 Grid for 45 Nodes */
+  .node-grid {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    gap: 10px;
+    flex: 1;
+  }
+
+  .node-card {
+    background: rgba(18, 26, 45, 0.75);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .node-card:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-accent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  }
+
+  .node-card.status-idle {
+    border-left: 3px solid var(--emerald);
+  }
+  .node-card.status-active {
+    border-left: 3px solid var(--cyan);
+    background: rgba(56, 189, 248, 0.08);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
+  }
+  .node-card.status-cooldown {
+    border-left: 3px solid var(--amber);
+    background: rgba(245, 158, 11, 0.08);
+  }
+  .node-card.status-quarantined {
+    border-left: 3px solid var(--red);
+    background: rgba(244, 63, 94, 0.08);
+  }
+
+  .node-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .node-name {
+    font-size: 12px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: -0.2px;
+  }
+
+  .node-status-indicator {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+  .node-card.status-idle .node-status-indicator { background: var(--emerald); box-shadow: 0 0 6px var(--emerald); }
+  .node-card.status-active .node-status-indicator { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); animation: pulse 1.2s infinite; }
+  .node-card.status-cooldown .node-status-indicator { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .node-card.status-quarantined .node-status-indicator { background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+  .node-meta {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--muted);
+  }
+
+  .node-meta-row {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .node-meta-row span.val {
+    color: #e2e8f0;
+    font-weight: 500;
+  }
+
+  /* Right: Live CDP Stream Terminal */
+  .terminal-panel {
+    background: rgba(12, 18, 32, 0.85);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    backdrop-filter: blur(8px);
+  }
+
+  .terminal-header {
+    background: #080c16;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .terminal-dots {
+    display: flex;
+    gap: 7px;
+  }
+  .tdot { width: 10px; height: 10px; border-radius: 50%; }
+  .tdot.red { background: #ef4444; }
+  .tdot.yellow { background: #f59e0b; }
+  .tdot.green { background: #10b981; }
+
+  .terminal-title {
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .terminal-body {
+    flex: 1;
+    background: #050811;
+    padding: 16px;
+    overflow-y: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .terminal-body::-webkit-scrollbar {
+    width: 6px;
+  }
+  .terminal-body::-webkit-scrollbar-thumb {
+    background: #1a253c;
+    border-radius: 3px;
+  }
+
+  .log-line {
+    display: flex;
+    gap: 10px;
+    word-break: break-all;
+  }
+
+  .log-time { color: var(--dim); }
+  .log-node { color: var(--cyan); font-weight: 600; }
+  .log-cmd { color: #e2e8f0; }
+  .log-lat { color: var(--emerald); }
+  .log-warn { color: var(--amber); }
+  .log-err { color: var(--red); font-weight: 600; }
+
+  /* Drawer / Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.active { display: flex; }
+
+  .modal-card {
+    width: 640px;
+    background: var(--surface);
+    border: 1px solid var(--border-accent);
+    border-radius: 14px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px var(--cyan-glow);
+    overflow: hidden;
+    animation: modalSlide 0.25s ease-out;
+  }
+
+  @keyframes modalSlide {
+    from { transform: translateY(20px) scale(0.97); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+  }
+
+  .modal-header {
+    background: var(--surface-elevated);
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .modal-header h3 {
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .btn-close {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 20px;
+    cursor: pointer;
+  }
+  .btn-close:hover { color: #fff; }
+
+  .modal-body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  .info-box {
+    background: #080c16;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .info-box label {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .info-box span {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e2e8f0;
+  }
+
+  .code-block {
+    background: #050811;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    color: #94a3b8;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  /* Toast Notification */
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    right: 40px;
+    background: rgba(12, 18, 32, 0.95);
+    border: 1px solid var(--cyan);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 20px var(--cyan-glow);
+    border-radius: 10px;
+    padding: 14px 22px;
+    font-size: 13px;
+    font-weight: 600;
+    display: none;
+    align-items: center;
+    gap: 12px;
+    z-index: 200;
+    animation: toastIn 0.3s ease;
+  }
+
+  @keyframes toastIn {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="grid-backdrop"></div>
+<div class="radial-glow"></div>
+
+<header>
+  <div class="brand">
+    <div class="logo-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+        <line x1="8" y1="21" x2="16" y2="21"></line>
+        <line x1="12" y1="17" x2="12" y2="21"></line>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <h1>Browser Pool Orchestrator <span class="badge-pro">Enterprise Fleet</span></h1>
+      <p>45-Node Distributed Headless Fleet & CDP Session Architecture · Verified Anchor: Tuesday 2026-10-13</p>
+    </div>
+  </div>
+
+  <div class="header-actions">
+    <button class="btn btn-primary" id="btn-dispatch">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+      Dispatch Parallel Batch (10 Nodes)
+    </button>
+    <button class="btn btn-secondary" id="btn-heal">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+      Simulate Rate-Limit & Auto-Heal
+    </button>
+    <button class="btn btn-danger" id="btn-purge">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+      Purge Orphaned PIDs
+    </button>
+    <div class="status-pill">
+      <div class="pulse-dot"></div>
+      FLEET ONLINE (45/45 SLOTS)
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- Telemetry Row -->
+  <div class="telemetry-row">
+    <div class="stat-card">
+      <div class="stat-header">
+        <span class="stat-title">Concurrency Load</span>
+        <span class="stat-badge cyan" id="badge-concurrency">26.7% SATURATION</span>
+      </div>
+      <div class="stat-value" id="val-concurrency">
+        12 <span style="font-size:16px; color:var(--muted); font-weight:500;">/ 45 Active</span>
+      </div>
+      <span class="stat-sub">33 Idle Slots Standing By</span>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-concurrency" style="width: 26.7%;"></div>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-header">
+        <span class="stat-title">Zero-Zombie Supervisor</span>
+        <span class="stat-badge emerald">100% CLEAN</span>
+      </div>
+      <div class="stat-value">
+        0 <span style="font-size:16px; color:var(--emerald); font-weight:500;">Lingering PIDs</span>
+      </div>
+      <span class="stat-sub">Parent-Child Tree Supervision Active</span>
+      <div class="progress-track">
+        <div class="progress-fill" style="width: 100%; background: var(--emerald);"></div>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-header">
+        <span class="stat-title">Fleet Memory Overhead</span>
+        <span class="stat-badge cyan">STABLE · NO LEAKS</span>
+      </div>
+      <div class="stat-value">
+        4.12 <span style="font-size:16px; color:var(--muted); font-weight:500;">GB / 46.0 GB</span>
+      </div>
+      <span class="stat-sub">Per-node ceiling strictly enforced (1024 MB)</span>
+      <div class="progress-track">
+        <div class="progress-fill" style="width: 18%; background: linear-gradient(90deg, #6366f1, #38bdf8);"></div>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-header">
+        <span class="stat-title">Self-Healing Recovery</span>
+        <span class="stat-badge emerald">AUTO-HEAL 98.4%</span>
+      </div>
+      <div class="stat-value">
+        98.4% <span style="font-size:16px; color:var(--emerald); font-weight:500;">Success</span>
+      </div>
+      <span class="stat-sub">Automatic Exponential Backoff & Jitter</span>
+      <div class="progress-track">
+        <div class="progress-fill" style="width: 98.4%; background: linear-gradient(90deg, var(--emerald), #059669);"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workspace: 45 Node Grid + Live CDP Event Stream -->
+  <div class="core-workspace">
+    <!-- Left: 45 Node Matrix -->
+    <div class="matrix-panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" color="#38bdf8"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+          45-NODE FLEET TOPOLOGY MATRIX (SLOTS 00 – 44)
+        </div>
+        <div class="legend-row">
+          <div class="legend-item"><div class="legend-dot idle"></div> IDLE (33)</div>
+          <div class="legend-item"><div class="legend-dot active"></div> ACTIVE (12)</div>
+          <div class="legend-item"><div class="legend-dot cooldown"></div> COOLDOWN (0)</div>
+          <div class="legend-item"><div class="legend-dot quarantined"></div> QUARANTINED (0)</div>
+        </div>
+      </div>
+
+      <div class="node-grid" id="node-grid-container">
+        <!-- Generated by JavaScript: 45 Node Cards -->
+      </div>
+    </div>
+
+    <!-- Right: Real-time CDP Event Stream Terminal -->
+    <div class="terminal-panel">
+      <div class="terminal-header">
+        <div class="terminal-dots">
+          <div class="tdot red"></div>
+          <div class="tdot yellow"></div>
+          <div class="tdot green"></div>
+        </div>
+        <div class="terminal-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+          LIVE CDP JSON-RPC EVENT BUS (PORTS 9222–9266)
+        </div>
+        <div style="font-size:11px; color:var(--emerald); font-family:'JetBrains Mono',monospace;">STREAMING 100%</div>
+      </div>
+      <div class="terminal-body" id="terminal-stream">
+        <!-- Live Monospace Telemetry Logs -->
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Modal: Node Telemetry Inspector -->
+<div class="modal-overlay" id="node-modal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="modal-node-title">NODE 07 TELEMETRY INSPECTOR</h3>
+      <button class="btn-close" id="modal-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="info-grid">
+        <div class="info-box">
+          <label>Remote Debugging Port</label>
+          <span id="modal-port">9229</span>
+        </div>
+        <div class="info-box">
+          <label>Root & Child PIDs</label>
+          <span id="modal-pid">PID 50007 [50107, 50207]</span>
+        </div>
+        <div class="info-box">
+          <label>Current Status</label>
+          <span id="modal-status" style="color:var(--emerald);">IDLE / HEALTHY</span>
+        </div>
+        <div class="info-box">
+          <label>Active Memory Floor</label>
+          <span id="modal-mem">140 MB / 1024 MB</span>
+        </div>
+      </div>
+
+      <div class="info-box">
+        <label>Isolated User-Data Directory</label>
+        <span id="modal-path" style="font-size:11px; word-break:break-all;">/var/run/browser_pool/profiles/profile_07</span>
+      </div>
+
+      <div class="info-box">
+        <label>Active CDP Target URL</label>
+        <span id="modal-ws" style="font-size:11px; color:var(--cyan);">ws://127.0.0.1:9229/devtools/page/T07_ORCHESTRATOR</span>
+      </div>
+
+      <div class="code-block" id="modal-code">
+{
+  "node_id": "node_07",
+  "assigned_slot": 7,
+  "cdp_port": 9229,
+  "domains_attached": ["Page", "DOM", "Input", "Runtime", "Network", "Target"],
+  "consecutive_failures": 0,
+  "quarantine_state": false,
+  "anti_fingerprint_profile": "standard_synthetic_v4",
+  "health": "nominal"
+}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast-bar">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" color="#38bdf8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+  <span id="toast-text">Operation completed.</span>
+</div>
+
+<script>
+  // Fleet State Definition
+  const TOTAL_NODES = 45;
+  const START_PORT = 9222;
+  const nodes = [];
+
+  // Initially active nodes: 12 nodes (e.g. 02, 05, 08, 11, 14, 17, 20, 23, 26, 29, 32, 35)
+  const initialActive = new Set([2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35]);
+
+  for (let i = 0; i < TOTAL_NODES; i++) {
+    const isActive = initialActive.has(i);
+    nodes.push({
+      index: i,
+      id: `node_${i.toString().padStart(2, '0')}`,
+      port: START_PORT + i,
+      pid: 50000 + i,
+      children: [50100 + i, 50200 + i],
+      status: isActive ? 'ACTIVE' : 'IDLE',
+      memory: isActive ? 340 : 140,
+      sessions: 12 + (i % 7),
+      profilePath: `/var/run/browser_pool/profiles/profile_${i.toString().padStart(2, '0')}`,
+      activeJobId: isActive ? `job_${(1000 + i).toString(16)}` : null
+    });
+  }
+
+  // Render Grid
+  const gridContainer = document.getElementById('node-grid-container');
+
+  function renderGrid() {
+    gridContainer.innerHTML = '';
+    nodes.forEach(node => {
+      const card = document.createElement('div');
+      card.className = `node-card status-${node.status.toLowerCase()}`;
+      card.id = `card-${node.id}`;
+      card.onclick = () => openModal(node);
+
+      card.innerHTML = `
+        <div class="node-top">
+          <span class="node-name">NODE-${node.index.toString().padStart(2, '0')}</span>
+          <div class="node-status-indicator"></div>
+        </div>
+        <div class="node-meta">
+          <div class="node-meta-row">
+            <span>PORT:</span>
+            <span class="val">:${node.port}</span>
+          </div>
+          <div class="node-meta-row">
+            <span>PID:</span>
+            <span class="val">${node.pid}</span>
+          </div>
+          <div class="node-meta-row">
+            <span>STATUS:</span>
+            <span class="val" style="color: ${getStatusColor(node.status)};">${node.status}</span>
+          </div>
+        </div>
+      `;
+      gridContainer.appendChild(card);
+    });
+    updateTelemetryGauges();
+  }
+
+  function getStatusColor(status) {
+    switch (status) {
+      case 'ACTIVE': return 'var(--cyan)';
+      case 'IDLE': return 'var(--emerald)';
+      case 'COOLDOWN': return 'var(--amber)';
+      case 'QUARANTINED': return 'var(--red)';
+      default: return 'var(--muted)';
+    }
+  }
+
+  function updateTelemetryGauges() {
+    const activeCount = nodes.filter(n => n.status === 'ACTIVE').length;
+    const idleCount = nodes.filter(n => n.status === 'IDLE').length;
+    const cooldownCount = nodes.filter(n => n.status === 'COOLDOWN').length;
+    const quarCount = nodes.filter(n => n.status === 'QUARANTINED').length;
+
+    const satPct = ((activeCount / TOTAL_NODES) * 100).toFixed(1);
+    document.getElementById('val-concurrency').innerHTML = `${activeCount} <span style="font-size:16px; color:var(--muted); font-weight:500;">/ ${TOTAL_NODES} Active</span>`;
+    document.getElementById('badge-concurrency').innerText = `${satPct}% SATURATION`;
+    document.getElementById('progress-concurrency').style.width = `${satPct}%`;
+  }
+
+  // Terminal Real-Time Logging
+  const terminal = document.getElementById('terminal-stream');
+
+  const cdpSamples = [
+    { method: 'Page.navigate', params: '{"url": "https://identity.corp/auth/session"}', lat: '4.2ms' },
+    { method: 'DOM.querySelector', params: '{"selector": "input#cdp-session-token"}', lat: '2.1ms' },
+    { method: 'Input.dispatchMouseEvent', params: '{"type": "mousePressed", "x": 482, "y": 320}', lat: '1.8ms' },
+    { method: 'Runtime.evaluate', params: '{"expression": "window.__CLUSTER_READY === true"}', lat: '3.4ms' },
+    { method: 'Network.setExtraHTTPHeaders', params: '{"X-Cluster-Origin": "node-pool"}', lat: '1.2ms' },
+    { method: 'Target.createTarget', params: '{"url": "about:blank"}', lat: '6.5ms' },
+  ];
+
+  function getTimestamp() {
+    const d = new Date();
+    return d.toTimeString().split(' ')[0] + '.' + d.getMilliseconds().toString().padStart(3, '0');
+  }
+
+  function appendLog(nodeStr, cmd, lat, isWarn = false, isErr = false) {
+    const row = document.createElement('div');
+    row.className = 'log-line';
+
+    let colorClass = 'log-lat';
+    if (isWarn) colorClass = 'log-warn';
+    if (isErr) colorClass = 'log-err';
+
+    row.innerHTML = `
+      <span class="log-time">[${getTimestamp()}]</span>
+      <span class="log-node">${nodeStr}</span>
+      <span class="log-cmd">${cmd}</span>
+      <span class="${colorClass}">${lat}</span>
+    `;
+
+    terminal.appendChild(row);
+    if (terminal.children.length > 60) {
+      terminal.removeChild(terminal.children[0]);
+    }
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+
+  // Seed initial log history
+  for (let i = 0; i < 14; i++) {
+    const n = nodes[i * 3 % TOTAL_NODES];
+    const s = cdpSamples[i % cdpSamples.length];
+    appendLog(`Node ${n.index.toString().padStart(2, '0')} (:${n.port})`, `${s.method} ${s.params}`, `[ACK ${s.lat}]`);
+  }
+
+  // Periodic heartbeat log
+  setInterval(() => {
+    const activeNodes = nodes.filter(n => n.status === 'ACTIVE');
+    if (activeNodes.length > 0) {
+      const randNode = activeNodes[Math.floor(Math.random() * activeNodes.length)];
+      const sample = cdpSamples[Math.floor(Math.random() * cdpSamples.length)];
+      appendLog(`Node ${randNode.index.toString().padStart(2, '0')} (:${randNode.port})`, `${sample.method} ${sample.params}`, `[ACK ${sample.lat}]`);
+    }
+  }, 1600);
+
+  // Modal Handling
+  const modal = document.getElementById('node-modal');
+  const modalClose = document.getElementById('modal-close');
+
+  function openModal(node) {
+    document.getElementById('modal-node-title').innerText = `NODE ${node.index.toString().padStart(2, '0')} TELEMETRY INSPECTOR`;
+    document.getElementById('modal-port').innerText = node.port;
+    document.getElementById('modal-pid').innerText = `PID ${node.pid} [${node.children.join(', ')}]`;
+    
+    const statusElem = document.getElementById('modal-status');
+    statusElem.innerText = `${node.status} / HEALTHY`;
+    statusElem.style.color = getStatusColor(node.status);
+
+    document.getElementById('modal-mem').innerText = `${node.memory} MB / 1024 MB`;
+    document.getElementById('modal-path').innerText = node.profilePath;
+    document.getElementById('modal-ws').innerText = `ws://127.0.0.1:${node.port}/devtools/page/T${node.index.toString().padStart(2, '0')}_ORCHESTRATOR`;
+    
+    document.getElementById('modal-code').innerText = JSON.stringify({
+      node_id: node.id,
+      assigned_slot: node.index,
+      cdp_port: node.port,
+      domains_attached: ["Page", "DOM", "Input", "Runtime", "Network", "Target"],
+      consecutive_failures: 0,
+      quarantine_state: node.status === 'QUARANTINED',
+      anti_fingerprint_profile: "standard_synthetic_v4",
+      health: node.status === 'QUARANTINED' ? 'quarantined' : 'nominal'
+    }, null, 2);
+
+    modal.classList.add('active');
+  }
+
+  modalClose.onclick = () => modal.classList.remove('active');
+  modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
+
+  // Toast Function
+  const toastBar = document.getElementById('toast-bar');
+  const toastText = document.getElementById('toast-text');
+  let toastTimeout;
+
+  function showToast(msg) {
+    clearTimeout(toastTimeout);
+    toastText.innerText = msg;
+    toastBar.style.display = 'flex';
+    toastTimeout = setTimeout(() => {
+      toastBar.style.display = 'none';
+    }, 3800);
+  }
+
+  // Interactive Action 1: Dispatch Parallel Batch (10 Nodes)
+  document.getElementById('btn-dispatch').onclick = () => {
+    const idleNodes = nodes.filter(n => n.status === 'IDLE');
+    if (idleNodes.length < 10) {
+      showToast('⚠️ Fleet nearing maximum capacity; allocating remaining idle slots.');
+    }
+    const toActivate = idleNodes.slice(0, 10);
+    toActivate.forEach(n => {
+      n.status = 'ACTIVE';
+      n.memory = 340;
+      appendLog(`Node ${n.index.toString().padStart(2, '0')} (:${n.port})`, `Lease Acquired: Job #${(Math.random() * 9000 + 1000).toFixed(0)}`, `[DISPATCHED]`);
+      appendLog(`Node ${n.index.toString().padStart(2, '0')} (:${n.port})`, `Page.navigate {"url": "https://fleet.internal/batch/${n.index}"}`, `[ACK 3.1ms]`);
+    });
+
+    renderGrid();
+    showToast(`⚡ Dispatched batch across 10 nodes. Active Concurrency: ${nodes.filter(n => n.status === 'ACTIVE').length}/45`);
+
+    // Reset after 4 seconds to simulate task completion
+    setTimeout(() => {
+      toActivate.forEach(n => {
+        n.status = 'IDLE';
+        n.memory = 140;
+        appendLog(`Node ${n.index.toString().padStart(2, '0')} (:${n.port})`, `Task Completed -> Released to IDLE pool`, `[CLEAN]`);
+      });
+      renderGrid();
+    }, 4500);
+  };
+
+  // Interactive Action 2: Simulate Rate-Limit & Auto-Heal
+  document.getElementById('btn-heal').onclick = () => {
+    const targetNode = nodes[18]; // Node 18
+    targetNode.status = 'QUARANTINED';
+    renderGrid();
+
+    appendLog(`Node 18 (:9240)`, `HTTP 429: Account Rate Limit Detected (API Quota Exhausted)`, `[TRIGGER]`, false, true);
+    appendLog(`Node 18 (:9240)`, `ResilienceEngine -> AnomalyType: HARD_RATE_LIMIT -> QUARANTINE 300s`, `[QUARANTINE]`, true);
+    showToast(`🛡️ Node 18 QUARANTINED: Rate-Limit Anomaly Classified. Commencing Auto-Heal cycle...`);
+
+    // Step 1: Transition to Cooldown after 2.5s
+    setTimeout(() => {
+      targetNode.status = 'COOLDOWN';
+      renderGrid();
+      appendLog(`Node 18 (:9240)`, `Quarantine Holding Expired -> Transitioning to COOLDOWN (Backoff: 2.0x)`, `[RECOVERING]`, true);
+    }, 2500);
+
+    // Step 2: Transition back to IDLE / Healthy after another 2.5s
+    setTimeout(() => {
+      targetNode.status = 'IDLE';
+      renderGrid();
+      appendLog(`Node 18 (:9240)`, `Auto-Recovery Complete -> Health Probe: 100% NOMINAL -> Returned to IDLE Fleet`, `[RECOVERED]`);
+      showToast(`✅ Node 18 Self-Healing Successful: Returned to Available Fleet.`);
+    }, 5000);
+  };
+
+  // Interactive Action 3: Purge Orphaned PIDs
+  document.getElementById('btn-purge').onclick = () => {
+    appendLog(`Supervisor`, `Initiating Process Hierarchy Scan across all 45 CDP slots...`, `[SCAN]`);
+    setTimeout(() => {
+      appendLog(`Supervisor`, `Scanned 45 Port Bindings & 135 Host PIDs -> Lingering Zombies: 0 [FLEET 100% CLEAN]`, `[VERIFIED]`);
+      showToast(`🧹 Supervisor Scan Complete: 0 Orphaned Processes. Zero Zombie State Confirmed.`);
+    }, 400);
+  };
+
+  // Initial render
+  renderGrid();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,531 @@
+fleet_name: browser-pool-primary
+pool_size: 45
+port_range:
+  start: 9222
+  end: 9266
+base_user_data_dir: /var/run/browser_pool/profiles
+resilience:
+  soft_limit_cooldown_sec: 30.0
+  hard_limit_cooldown_sec: 300.0
+  quarantine_duration_sec: 600.0
+  max_consecutive_failures: 3
+  backoff_multiplier: 2.0
+  jitter: true
+  rate_limit_patterns:
+  - '429'
+  - rate limit
+  - too many requests
+  - quota exceeded
+  - quota exhausted
+  - throttled
+  - resource exhausted
+  transient_patterns:
+  - timeout
+  - content filtered
+  - policy retry
+  - navigation timeout
+  - temporary hiccup
+  - target closed
+  - dom race
+  - element not interactable
+telemetry:
+  enabled: true
+  metrics_export_interval_sec: 5.0
+  log_level: INFO
+  health_check_interval_sec: 10.0
+nodes:
+- node_id: node_00
+  slot_index: 0
+  cdp_port: 9222
+  user_data_dir: /var/run/browser_pool/profiles/profile_00
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_01
+  slot_index: 1
+  cdp_port: 9223
+  user_data_dir: /var/run/browser_pool/profiles/profile_01
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_02
+  slot_index: 2
+  cdp_port: 9224
+  user_data_dir: /var/run/browser_pool/profiles/profile_02
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_03
+  slot_index: 3
+  cdp_port: 9225
+  user_data_dir: /var/run/browser_pool/profiles/profile_03
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_04
+  slot_index: 4
+  cdp_port: 9226
+  user_data_dir: /var/run/browser_pool/profiles/profile_04
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_05
+  slot_index: 5
+  cdp_port: 9227
+  user_data_dir: /var/run/browser_pool/profiles/profile_05
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_06
+  slot_index: 6
+  cdp_port: 9228
+  user_data_dir: /var/run/browser_pool/profiles/profile_06
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_07
+  slot_index: 7
+  cdp_port: 9229
+  user_data_dir: /var/run/browser_pool/profiles/profile_07
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_08
+  slot_index: 8
+  cdp_port: 9230
+  user_data_dir: /var/run/browser_pool/profiles/profile_08
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_09
+  slot_index: 9
+  cdp_port: 9231
+  user_data_dir: /var/run/browser_pool/profiles/profile_09
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_10
+  slot_index: 10
+  cdp_port: 9232
+  user_data_dir: /var/run/browser_pool/profiles/profile_10
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_11
+  slot_index: 11
+  cdp_port: 9233
+  user_data_dir: /var/run/browser_pool/profiles/profile_11
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_12
+  slot_index: 12
+  cdp_port: 9234
+  user_data_dir: /var/run/browser_pool/profiles/profile_12
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_13
+  slot_index: 13
+  cdp_port: 9235
+  user_data_dir: /var/run/browser_pool/profiles/profile_13
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_14
+  slot_index: 14
+  cdp_port: 9236
+  user_data_dir: /var/run/browser_pool/profiles/profile_14
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_15
+  slot_index: 15
+  cdp_port: 9237
+  user_data_dir: /var/run/browser_pool/profiles/profile_15
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_16
+  slot_index: 16
+  cdp_port: 9238
+  user_data_dir: /var/run/browser_pool/profiles/profile_16
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_17
+  slot_index: 17
+  cdp_port: 9239
+  user_data_dir: /var/run/browser_pool/profiles/profile_17
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_18
+  slot_index: 18
+  cdp_port: 9240
+  user_data_dir: /var/run/browser_pool/profiles/profile_18
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_19
+  slot_index: 19
+  cdp_port: 9241
+  user_data_dir: /var/run/browser_pool/profiles/profile_19
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_20
+  slot_index: 20
+  cdp_port: 9242
+  user_data_dir: /var/run/browser_pool/profiles/profile_20
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_21
+  slot_index: 21
+  cdp_port: 9243
+  user_data_dir: /var/run/browser_pool/profiles/profile_21
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_22
+  slot_index: 22
+  cdp_port: 9244
+  user_data_dir: /var/run/browser_pool/profiles/profile_22
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_23
+  slot_index: 23
+  cdp_port: 9245
+  user_data_dir: /var/run/browser_pool/profiles/profile_23
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_24
+  slot_index: 24
+  cdp_port: 9246
+  user_data_dir: /var/run/browser_pool/profiles/profile_24
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_25
+  slot_index: 25
+  cdp_port: 9247
+  user_data_dir: /var/run/browser_pool/profiles/profile_25
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_26
+  slot_index: 26
+  cdp_port: 9248
+  user_data_dir: /var/run/browser_pool/profiles/profile_26
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_27
+  slot_index: 27
+  cdp_port: 9249
+  user_data_dir: /var/run/browser_pool/profiles/profile_27
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_28
+  slot_index: 28
+  cdp_port: 9250
+  user_data_dir: /var/run/browser_pool/profiles/profile_28
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_29
+  slot_index: 29
+  cdp_port: 9251
+  user_data_dir: /var/run/browser_pool/profiles/profile_29
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_30
+  slot_index: 30
+  cdp_port: 9252
+  user_data_dir: /var/run/browser_pool/profiles/profile_30
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_31
+  slot_index: 31
+  cdp_port: 9253
+  user_data_dir: /var/run/browser_pool/profiles/profile_31
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_32
+  slot_index: 32
+  cdp_port: 9254
+  user_data_dir: /var/run/browser_pool/profiles/profile_32
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_33
+  slot_index: 33
+  cdp_port: 9255
+  user_data_dir: /var/run/browser_pool/profiles/profile_33
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_34
+  slot_index: 34
+  cdp_port: 9256
+  user_data_dir: /var/run/browser_pool/profiles/profile_34
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_35
+  slot_index: 35
+  cdp_port: 9257
+  user_data_dir: /var/run/browser_pool/profiles/profile_35
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_36
+  slot_index: 36
+  cdp_port: 9258
+  user_data_dir: /var/run/browser_pool/profiles/profile_36
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_37
+  slot_index: 37
+  cdp_port: 9259
+  user_data_dir: /var/run/browser_pool/profiles/profile_37
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_38
+  slot_index: 38
+  cdp_port: 9260
+  user_data_dir: /var/run/browser_pool/profiles/profile_38
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_39
+  slot_index: 39
+  cdp_port: 9261
+  user_data_dir: /var/run/browser_pool/profiles/profile_39
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_40
+  slot_index: 40
+  cdp_port: 9262
+  user_data_dir: /var/run/browser_pool/profiles/profile_40
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_41
+  slot_index: 41
+  cdp_port: 9263
+  user_data_dir: /var/run/browser_pool/profiles/profile_41
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_42
+  slot_index: 42
+  cdp_port: 9264
+  user_data_dir: /var/run/browser_pool/profiles/profile_42
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_43
+  slot_index: 43
+  cdp_port: 9265
+  user_data_dir: /var/run/browser_pool/profiles/profile_43
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
+- node_id: node_44
+  slot_index: 44
+  cdp_port: 9266
+  user_data_dir: /var/run/browser_pool/profiles/profile_44
+  headless: true
+  memory_limit_mb: 1024
+  max_sessions: 100
+  tags:
+  - standard
+  - general-compute
+  active: true
