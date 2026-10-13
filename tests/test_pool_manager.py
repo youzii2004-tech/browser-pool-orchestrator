@@ -121,5 +121,40 @@ def test_telemetry_reporting() -> None:
     assert telemetry.busy_count == 3
     assert telemetry.idle_count == 7
     assert telemetry.active_concurrency_ratio == 0.3
-    assert telemetry.total_memory_mb > 0
-    assert telemetry.auto_recovery_rate >= 90.0
+    # Leases without a browser: nothing to measure, and nothing may be invented.
+    assert telemetry.total_memory_mb is None
+    assert telemetry.running_browsers == 0
+    assert telemetry.auto_recovery_rate is None
+
+
+def test_allocate_defaults_to_no_synthetic_process() -> None:
+    manager = PoolManager(PoolConfig(pool_size=2, port_range=PortRange(start=9222, end=9223)))
+    cfg = manager.allocate_node(job_id="j")
+    assert cfg is not None
+    assert manager.get_node(cfg.node_id).pid is None
+
+
+def test_recovery_rate_counts_expiry_even_when_allocate_triggers_it() -> None:
+    manager = PoolManager(PoolConfig(pool_size=1, port_range=PortRange(start=9222, end=9222)))
+    cfg = manager.allocate_node(job_id="j")
+    manager.release_node(cfg.node_id, success=False, quarantine_sec=0.05)
+    time.sleep(0.1)
+    # allocate (not refresh_node_states) performs the expiry transition
+    assert manager.allocate_node(job_id="j2") is not None
+    assert manager.get_telemetry().auto_recovery_rate == 100.0
+
+
+def test_release_after_shutdown_stays_offline() -> None:
+    manager = PoolManager(PoolConfig(pool_size=1, port_range=PortRange(start=9222, end=9222)))
+    cfg = manager.allocate_node(job_id="j")
+    manager.shutdown()
+    manager.release_node(cfg.node_id)
+    assert manager.get_node(cfg.node_id).status == NodeStatus.OFFLINE
+
+
+def test_terminate_does_not_clobber_quarantine() -> None:
+    manager = PoolManager(PoolConfig(pool_size=1, port_range=PortRange(start=9222, end=9222)))
+    cfg = manager.allocate_node(job_id="j", mock_process=True)
+    manager.release_node(cfg.node_id, success=False, quarantine_sec=60)
+    manager.terminate_node_process(cfg.node_id)
+    assert manager.get_node(cfg.node_id).status == NodeStatus.QUARANTINED

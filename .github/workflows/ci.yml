@@ -1,0 +1,19 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -r requirements.txt
+      - name: Install a real Chromium for the integration tests
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+      - run: python -m pytest -v -rs

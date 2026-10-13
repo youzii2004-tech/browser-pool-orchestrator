@@ -57,6 +57,34 @@ class JobTask:
         return None
 
 
+class HTTPStatusError(Exception):
+    """Raised by handlers when a page responds with an error status; carries the code for classification."""
+
+    def __init__(self, status: int, url: str = "") -> None:
+        super().__init__(f"HTTP {status} from {url}".strip())
+        self.http_status = status
+        self.url = url
+
+
+async def cdp_navigate_handler(node: NodeConfig, task: "JobTask") -> Dict[str, Any]:
+    """
+    Real handler: drive the node's browser over CDP to ``task.payload["target"]`` and report
+    what it actually loaded. HTTP >= 400 raises HTTPStatusError so the resilience engine
+    classifies it from the real status code (429 -> quarantine, 5xx -> retry, ...).
+    """
+    url = task.payload["target"]
+    client = await CDPClient.for_port(node.cdp_port)
+    try:
+        nav = await client.navigate(url, timeout=task.payload.get("timeout", 15.0))
+        status = nav["status"]
+        if status is not None and status >= 400:
+            raise HTTPStatusError(status, url)
+        title = await client.runtime_evaluate("document.title")
+        return {"status": status, "title": title, "url": url, "node_id": node.node_id, "cdp_port": node.cdp_port}
+    finally:
+        await client.disconnect()
+
+
 TaskHandler = Callable[[NodeConfig, JobTask], Coroutine[Any, Any, Dict[str, Any]]]
 
 
@@ -68,7 +96,14 @@ class BatchScheduler:
         pool_manager: PoolManager,
         resilience_engine: Optional[ResilienceEngine] = None,
         max_concurrency: int = 15,
+        launch_browsers: bool = False,
     ) -> None:
+        """
+        ``launch_browsers=True`` makes every lease start (or reuse) a real Chromium for the
+        node via ``PoolManager.acquire``. Without it only the slot is leased, which is what
+        handlers that don't need a browser (and the unit tests) want.
+        """
+        self.launch_browsers = launch_browsers
         self.pool = pool_manager
         self.resilience = resilience_engine or ResilienceEngine(pool_manager.config.resilience)
         self.max_concurrency = max(1, min(max_concurrency, self.pool.config.pool_size))
@@ -106,14 +141,24 @@ class BatchScheduler:
         Executes a single task within concurrency bounds, leasing a node from the pool.
         """
         async with self.semaphore:
-            # Lease node from fleet
-            node_cfg = self.pool.allocate_node(job_id=task.job_id)
-            if not node_cfg:
-                # Fleet currently saturated; re-enqueue with short backoff
-                await asyncio.sleep(0.5)
-                self.queue.put_nowait(task)
+            try:
+                if self.launch_browsers:
+                    node_cfg = await self.pool.acquire(job_id=task.job_id)
+                else:
+                    node_cfg = self.pool.allocate_node(job_id=task.job_id)
+            except Exception as exc:  # browser failed to start: treat like any task failure
+                self._fail_or_retry(task, exc, None)
                 return
+            if not node_cfg:
+                node_cfg = None
 
+        if node_cfg is None:
+            # Fleet saturated: back off outside the semaphore so we don't starve other workers.
+            await asyncio.sleep(0.5)
+            self.queue.put_nowait(task)
+            return
+
+        async with self.semaphore:
             task.assigned_node_id = node_cfg.node_id
             task.status = JobStatus.RUNNING
             task.started_at = time.time()
@@ -123,15 +168,17 @@ class BatchScheduler:
             cooldown_sec = 0.0
             quarantine_sec = 0.0
             quarantine_reason = None
+            post_release = None
 
             try:
                 if handler:
                     res = await handler(node_cfg, task)
                 else:
-                    # Default mock synthetic execution handler
-                    await asyncio.sleep(0.05)  # 50ms mock work
+                    # Dry run: no browser, no work. Result is explicitly marked as synthetic.
+                    await asyncio.sleep(0.05)
                     res = {
-                        "status": "success",
+                        "status": "dry-run",
+                        "synthetic": True,
                         "node_id": node_cfg.node_id,
                         "cdp_port": node_cfg.cdp_port,
                         "processed_at": time.time(),
@@ -145,15 +192,7 @@ class BatchScheduler:
                 logger.info("Task %s successfully completed on %s", task.job_id, node_cfg.node_id)
 
             except Exception as exc:
-                task.error_message = str(exc)
-                logger.warning("Task %s failed on %s: %s", task.job_id, node_cfg.node_id, exc)
-
-                # Evaluate through ResilienceEngine
-                classification = self.resilience.classify_error(
-                    error_message=str(exc),
-                    consecutive_failures=task.retries,
-                )
-
+                classification = self._fail_or_retry(task, exc, node_cfg)
                 if classification.should_quarantine:
                     quarantine_sec = classification.cooldown_seconds
                     quarantine_reason = f"Classification: {classification.anomaly_type.value}"
@@ -165,18 +204,7 @@ class BatchScheduler:
                     )
                 else:
                     cooldown_sec = classification.cooldown_seconds
-
-                # Retry logic
-                if task.retries < task.max_retries and classification.recommended_action != "PURGE_SESSION":
-                    task.retries += 1
-                    task.status = JobStatus.RETRYING
-                    task.assigned_node_id = None
-                    self.queue.put_nowait(task)
-                    logger.info("Task %s scheduled for retry #%d", task.job_id, task.retries)
-                else:
-                    task.status = JobStatus.FAILED
-                    task.completed_at = time.time()
-                    self.failed_tasks.append(task)
+                post_release = classification.recommended_action
 
             finally:
                 self.pool.release_node(
@@ -186,6 +214,37 @@ class BatchScheduler:
                     quarantine_sec=quarantine_sec,
                     quarantine_reason=quarantine_reason,
                 )
+
+        # Act on the classifier's recommendation now that the lease is released.
+        if post_release == "RECYCLE_NODE":
+            await self.pool.stop_node(node_cfg.node_id)
+        elif post_release == "PURGE_SESSION":
+            await self.pool.stop_node(node_cfg.node_id)
+            if self.launch_browsers:
+                self.pool.purge_profile(node_cfg.node_id)
+
+    def _fail_or_retry(self, task: JobTask, exc: BaseException, node_cfg: Optional[NodeConfig]):
+        """Classify a failure, then requeue the task or mark it permanently failed."""
+        task.error_message = str(exc)
+        where = node_cfg.node_id if node_cfg else "(no node)"
+        logger.warning("Task %s failed on %s: %s", task.job_id, where, exc)
+
+        classification = self.resilience.classify_error(
+            error_message=str(exc),
+            http_status=getattr(exc, "http_status", None),
+            consecutive_failures=task.retries,
+        )
+        if task.retries < task.max_retries and classification.recommended_action != "PURGE_SESSION":
+            task.retries += 1
+            task.status = JobStatus.RETRYING
+            task.assigned_node_id = None
+            self.queue.put_nowait(task)
+            logger.info("Task %s scheduled for retry #%d", task.job_id, task.retries)
+        else:
+            task.status = JobStatus.FAILED
+            task.completed_at = time.time()
+            self.failed_tasks.append(task)
+        return classification
 
     async def _worker_loop(self, handler: Optional[TaskHandler] = None) -> None:
         """Continuous background worker draining tasks from the queue."""

@@ -1,0 +1,15 @@
+[project]
+name = "browser-pool-orchestrator"
+version = "0.2.0"
+description = "Supervise a pool of headless Chromium processes over the DevTools protocol"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = ["pydantic>=2.6.0", "pyyaml>=6.0", "websockets>=12.0", "psutil>=5.9.0"]
+
+[project.scripts]
+browserpool = "src.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

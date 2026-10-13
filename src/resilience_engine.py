@@ -13,6 +13,7 @@ from enum import Enum
 import logging
 import math
 import random
+import re
 import time
 from typing import Dict, List, Optional
 
@@ -60,6 +61,15 @@ class QuarantineRecord:
         return time.time() >= self.expires_at
 
 
+def _contains(haystack: str, needle: str) -> bool:
+    """Case-insensitive match that respects token boundaries ('429' must not match '14290')."""
+    return re.search(r"(?<![a-z0-9])" + re.escape(needle.lower()) + r"(?![a-z0-9])", haystack) is not None
+
+
+_CRASH_TERMS = ("target crashed", "sigsegv", "out of memory", "oom", "crash", "crashed", "browser disconnected")
+_AUTH_TERMS = ("unauthorized", "session expired", "cookie invalid", "auth required")
+
+
 class ResilienceEngine:
     """Self-healing policy enforcer evaluating errors and managing node quarantine states."""
 
@@ -84,6 +94,26 @@ class ResilienceEngine:
         """
         lowered = (error_message or "").lower()
 
+        # 0. Status codes other than 429 carry their own meaning
+        if http_status in (401, 407):
+            return ClassificationResult(
+                anomaly_type=AnomalyType.SESSION_CONTAMINATED,
+                recommended_action="PURGE_SESSION",
+                cooldown_seconds=30.0,
+                should_quarantine=True,
+                matched_pattern=f"HTTP_{http_status}",
+                confidence=1.0,
+            )
+        if http_status in (500, 502, 503, 504) and consecutive_failures < self.policy.max_consecutive_failures:
+            return ClassificationResult(
+                anomaly_type=AnomalyType.FALSE_ALARM,
+                recommended_action="FAST_RETRY",
+                cooldown_seconds=self.calculate_cooldown(AnomalyType.FALSE_ALARM, consecutive_failures),
+                should_quarantine=False,
+                matched_pattern=f"HTTP_{http_status}",
+                confidence=0.8,
+            )
+
         # 1. Hard Rate Limits (HTTP 429 or explicit quota text)
         if http_status == 429:
             cooldown = self.calculate_cooldown(AnomalyType.HARD_RATE_LIMIT, consecutive_failures)
@@ -97,7 +127,7 @@ class ResilienceEngine:
             )
 
         for pat in self.policy.rate_limit_patterns:
-            if pat in lowered:
+            if _contains(lowered, pat):
                 cooldown = self.calculate_cooldown(AnomalyType.HARD_RATE_LIMIT, consecutive_failures)
                 return ClassificationResult(
                     anomaly_type=AnomalyType.HARD_RATE_LIMIT,
@@ -109,7 +139,7 @@ class ResilienceEngine:
                 )
 
         # 2. Process Crashes or Target Disconnections
-        if any(term in lowered for term in ["target crashed", "sigsegv", "out of memory", "oom", "crash"]):
+        if any(_contains(lowered, term) for term in _CRASH_TERMS):
             return ClassificationResult(
                 anomaly_type=AnomalyType.PROCESS_CRASH,
                 recommended_action="RECYCLE_NODE",
@@ -120,7 +150,7 @@ class ResilienceEngine:
             )
 
         # 3. Session Contamination
-        if any(term in lowered for term in ["unauthorized", "session expired", "cookie invalid", "auth required"]):
+        if any(_contains(lowered, term) for term in _AUTH_TERMS):
             return ClassificationResult(
                 anomaly_type=AnomalyType.SESSION_CONTAMINATED,
                 recommended_action="PURGE_SESSION",
@@ -132,7 +162,7 @@ class ResilienceEngine:
 
         # 4. Soft Transient False Alarms (Content rejections, timeouts, DOM races)
         for pat in self.policy.transient_patterns:
-            if pat in lowered:
+            if _contains(lowered, pat):
                 # If consecutive failures exceed threshold, escalate to quarantine
                 if consecutive_failures >= self.policy.max_consecutive_failures:
                     cooldown = self.calculate_cooldown(AnomalyType.HARD_RATE_LIMIT, consecutive_failures)
@@ -223,7 +253,7 @@ class ResilienceEngine:
         record = self.quarantine_registry.get(node_id)
         if not record:
             return False
-        now = current_time or time.time()
+        now = time.time() if current_time is None else current_time
         if now >= record.expires_at:
             # Expired; remove from active registry
             del self.quarantine_registry[node_id]
@@ -232,7 +262,7 @@ class ResilienceEngine:
 
     def check_and_clear_expired_quarantines(self, current_time: Optional[float] = None) -> List[str]:
         """Scans active quarantines, purging expired entries and returning recovered node IDs."""
-        now = current_time or time.time()
+        now = time.time() if current_time is None else current_time
         recovered: List[str] = []
         expired_keys = [nid for nid, rec in self.quarantine_registry.items() if now >= rec.expires_at]
 
