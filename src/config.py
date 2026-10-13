@@ -8,7 +8,7 @@ top-level fleet configuration with YAML serialization.
 
 from __future__ import annotations
 
-import os
+import tempfile
 from pathlib import Path
 from typing import Any, List, Optional
 import yaml
@@ -132,14 +132,26 @@ class TelemetryConfig(BaseModel):
 
 
 class PoolConfig(BaseModel):
-    """Top-level fleet configuration orchestrating 45+ headless Chromium instances."""
+    """Top-level fleet configuration for a pool of headless Chromium instances."""
 
     fleet_name: str = Field(default="browser-pool-primary", description="Human-readable fleet name")
     pool_size: int = Field(default=45, ge=1, le=256, description="Total number of browser nodes")
     port_range: PortRange = Field(default_factory=PortRange, description="CDP port bounds")
     base_user_data_dir: Path = Field(
-        default_factory=lambda: Path("/var/run/browser_pool/profiles"),
-        description="Root directory for isolated user profiles",
+        default_factory=lambda: Path(tempfile.gettempdir()) / "browser_pool" / "profiles",
+        description="Root directory for isolated user profiles (must be writable)",
+    )
+    chromium_path: Optional[str] = Field(
+        default=None,
+        description="Chromium/Chrome executable; falls back to $BROWSER_POOL_CHROMIUM then PATH lookup",
+    )
+    no_sandbox: bool = Field(
+        default=False,
+        description="Pass --no-sandbox (needed when running as root or in many containers)",
+    )
+    extra_chromium_args: List[str] = Field(default_factory=list, description="Extra Chromium flags")
+    launch_timeout_sec: float = Field(
+        default=20.0, gt=0, description="Max seconds to wait for a launched browser's DevTools port"
     )
     resilience: ResiliencePolicy = Field(default_factory=ResiliencePolicy)
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
@@ -159,6 +171,11 @@ class PoolConfig(BaseModel):
             for node in self.nodes:
                 if node.node_id in seen_ids:
                     raise ValueError(f"Duplicate node_id found: {node.node_id}")
+                if not self.port_range.contains_port(node.cdp_port):
+                    raise ValueError(
+                        f"Node {node.node_id} port {node.cdp_port} is outside port_range "
+                        f"{self.port_range.start}-{self.port_range.end}"
+                    )
                 if node.cdp_port in seen_ports:
                     raise ValueError(f"Duplicate cdp_port found: {node.cdp_port}")
                 seen_ids.add(node.node_id)

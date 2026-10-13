@@ -1,6 +1,6 @@
 """
 Browser Pool Orchestrator
-Enterprise Distributed Headless Fleet & CDP Session Architecture.
+Supervise a pool of headless Chromium processes over the DevTools protocol.
 """
 
 from .config import (
@@ -31,9 +31,11 @@ from .scheduler import (
     BatchScheduler,
     JobTask,
     JobStatus,
+    HTTPStatusError,
+    cdp_navigate_handler,
 )
 
-__version__ = "1.0.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "PoolConfig",
@@ -55,4 +57,6 @@ __all__ = [
     "BatchScheduler",
     "JobTask",
     "JobStatus",
+    "HTTPStatusError",
+    "cdp_navigate_handler",
 ]

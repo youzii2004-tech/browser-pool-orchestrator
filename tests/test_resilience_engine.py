@@ -92,3 +92,27 @@ def test_exponential_backoff_calculation() -> None:
     assert cd_0 == 10.0
     assert cd_1 == 20.0
     assert cd_2 == 40.0
+
+
+@pytest.mark.parametrize("message", ["no room left in layout", "zoom level changed", "listening on port 14290"])
+def test_substrings_do_not_trigger_false_classifications(message) -> None:
+    result = ResilienceEngine().classify_error(message)
+    assert result.anomaly_type == AnomalyType.UNKNOWN_ERROR
+
+
+@pytest.mark.parametrize("message", ["HTTP 429 returned", "status=429", "Too Many Requests"])
+def test_real_rate_limit_text_still_matches(message) -> None:
+    assert ResilienceEngine().classify_error(message).anomaly_type == AnomalyType.HARD_RATE_LIMIT
+
+
+def test_http_status_classification() -> None:
+    engine = ResilienceEngine()
+    assert engine.classify_error("", http_status=503).anomaly_type == AnomalyType.FALSE_ALARM
+    assert engine.classify_error("", http_status=401).anomaly_type == AnomalyType.SESSION_CONTAMINATED
+    assert engine.classify_error("", http_status=429).should_quarantine
+
+
+def test_quarantine_check_with_time_zero_is_not_treated_as_now() -> None:
+    engine = ResilienceEngine()
+    engine.record_quarantine("n", AnomalyType.HARD_RATE_LIMIT, "r", duration_sec=100)
+    assert engine.is_quarantined("n", current_time=0.0) is True
